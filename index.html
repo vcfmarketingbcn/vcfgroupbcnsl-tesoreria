@@ -156,7 +156,7 @@
 
 <header>
   <div class="logo-area">
-    <img src="logo.png" style="width:36px;height:36px;object-fit:contain;">
+    <div class="logo-mark">C</div>
     <div>
       <div class="logo-text">Captaprop <span style="color:var(--muted);font-weight:400">/ Tesorería</span></div>
       <div class="logo-sub">VCF GROUP BCN SL · Control de Caja</div>
@@ -297,21 +297,11 @@
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 const PROXY = '/api/proxy?url=';
 const BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSkEfd0t5wxTsX6JJw7tkDhhXbW1rf8FSzOq71pJ4xpbiry8uKhSEz2cejMgRvBEQ/pub?output=csv&gid=';
-const REFRESH = 60000;
 
-// Sheet GIDs — these will be auto-detected from the sheet names
-// We'll fetch the main CSV and detect available sheets
-// For Lanzadera template, common GIDs:
-const SHEETS = {
-  real:       null,  // Cashflow REAL or Resumen REAL
-  prevision:  null,  // Cashflow PREVISIÓN
-  comparativa:null,  // Cashflow PREVISIÓN vs REAL
-  ingresos:   null   // OUTPUT Análisis Ingresos
-};
-
-// Known GID mapping for Lanzadera template (will try these)
-// GID 0 = first sheet (Instrucciones)
-// We'll try fetching with gid=0 first and parse the sheet list
+const GID_REAL        = 1878244977;
+const GID_PREVISION   = 1223683593;
+const GID_COMPARATIVA = 1236283102;
+const GID_INGRESOS    = 1627859033;
 
 let allData = {};
 let charts = {};
@@ -607,27 +597,6 @@ function renderIng(matrix) {
 }
 
 // ─── LOAD ALL ─────────────────────────────────────────────────────────────────
-// GIDs to try for each section (Lanzadera template known GIDs)
-// We'll try fetching multiple GIDs and pick the right sheet by content
-const GID_CANDIDATES = {
-  real:        [1114610229, 558705204, 0, 1],
-  prevision:   [1955275628, 847930891, 2, 3],
-  comparativa: [2089935706, 1234567890, 4, 5],
-  ingresos:    [755131022,  987654321, 6, 7]
-};
-
-async function tryFetchSheet(gids, keyword) {
-  for(const gid of gids) {
-    try {
-      const matrix = await fetchCSV(gid);
-      // Check if this sheet has relevant content
-      const flat = matrix.slice(0,10).flat().map(v=>String(v||'').toLowerCase()).join(' ');
-      if(keyword.some(k=>flat.includes(k))) return matrix;
-    } catch(e) { /* try next */ }
-  }
-  return null;
-}
-
 async function loadAll() {
   $('loadingScreen').style.display='flex';
   $('errorScreen').style.display='none';
@@ -636,12 +605,11 @@ async function loadAll() {
   $('syncDot').style.background='var(--amber)';
 
   try {
-    // Try to fetch all sheets in parallel
-    const [mReal, mPrev, mComp, mIng] = await Promise.allSettled([
-      tryFetchSheet(GID_CANDIDATES.real,       ['cobros','pagos','saldo','cashflow']),
-      tryFetchSheet(GID_CANDIDATES.prevision,  ['cobros','pagos','previsi','runway']),
-      tryFetchSheet(GID_CANDIDATES.comparativa,['real','previsto','desviaci']),
-      tryFetchSheet(GID_CANDIDATES.ingresos,   ['mrr','clientes','arpa','churn'])
+    const [mReal, mPrev, mComp, mIng] = await Promise.all([
+      fetchCSV(GID_REAL),
+      fetchCSV(GID_PREVISION),
+      fetchCSV(GID_COMPARATIVA),
+      fetchCSV(GID_INGRESOS)
     ]);
 
     $('loadingScreen').style.display='none';
@@ -650,10 +618,10 @@ async function loadAll() {
     $('syncDot').style.background='var(--green)';
     $('lastUpdate').textContent='Actualizado '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
 
-    renderReal(mReal.value);
-    renderPrev(mPrev.value);
-    renderComp(mComp.value);
-    renderIng(mIng.value);
+    renderReal(mReal);
+    renderPrev(mPrev);
+    renderComp(mComp);
+    renderIng(mIng);
 
   } catch(e) {
     $('loadingScreen').style.display='none';
